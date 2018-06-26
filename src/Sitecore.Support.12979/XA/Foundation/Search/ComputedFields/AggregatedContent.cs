@@ -40,10 +40,12 @@ namespace Sitecore.Support.XA.Foundation.Search.ComputedFields
       {
         return _mediaContentExtractor.ComputeFieldValue(indexable);
       }
-      if (!item.IsPageItem() && !IsPoi.Verify(item))
-      {
-        return null;
-      }
+      #region Removed code
+      //if (!item.IsPageItem() && !IsPoi.Verify(item))
+      //{
+      //  return null;
+      //}
+      #endregion
       ISet<Item> set = new HashSet<Item>();
       Item[] array = new Item[2]
       {
