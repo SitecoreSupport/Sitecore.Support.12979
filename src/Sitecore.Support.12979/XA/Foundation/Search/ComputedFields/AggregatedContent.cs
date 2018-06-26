@@ -1,30 +1,21 @@
-﻿using Sitecore;
-using Sitecore.Configuration;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Sitecore.ContentSearch;
 using Sitecore.ContentSearch.ComputedFields;
 using Sitecore.Data;
 using Sitecore.Data.Comparers;
-using Sitecore.Data.Fields;
 using Sitecore.Data.Items;
-using Sitecore.Sites;
-using Sitecore.XA.Foundation.IoC;
+using Sitecore.DependencyInjection;
 using Sitecore.XA.Foundation.LocalDatasources.Services;
 using Sitecore.XA.Foundation.Multisite;
 using Sitecore.XA.Foundation.Multisite.Extensions;
 using Sitecore.XA.Foundation.Search.ComputedFields;
 using Sitecore.XA.Foundation.SitecoreExtensions.Extensions;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
 
 namespace Sitecore.Support.XA.Foundation.Search.ComputedFields
 {
-
-
-
   public class AggregatedContent : Sitecore.XA.Foundation.Search.ComputedFields.AggregatedContent
   {
     private readonly MediaItemContentExtractor _mediaContentExtractor;
@@ -49,37 +40,48 @@ namespace Sitecore.Support.XA.Foundation.Search.ComputedFields
       {
         return _mediaContentExtractor.ComputeFieldValue(indexable);
       }
-      ISet<Item> dataFolders = new HashSet<Item>();
-      foreach (Item folder in new[] { ServiceLocator.Current.Resolve<IMultisiteContext>().GetDataItem(item), ServiceLocator.Current.Resolve<ILocalDatasourceService>().GetPageDataItem(item) })
+      if (!item.IsPageItem() && !IsPoi.Verify(item))
       {
-        if (folder != null)
+        return null;
+      }
+      ISet<Item> set = new HashSet<Item>();
+      Item[] array = new Item[2]
+      {
+            ServiceLocator.ServiceProvider.GetService<IMultisiteContext>().GetDataItem(item),
+            ServiceLocator.ServiceProvider.GetService<ILocalDatasourceService>().GetPageDataItem(item)
+      };
+      foreach (Item item2 in array)
+      {
+        if (item2 != null)
         {
-          dataFolders.Add(folder);
+          set.Add(item2);
         }
       }
-
-      List<Item> items = new List<Item> { item };
-      items.AddRange(GetFieldReferences(item, dataFolders));
-      items.AddRange(GetLayoutReferences(item, dataFolders));
-
-      int k = 0;
-      while (k < items.Count)
-      {
-        for (; k < items.Count; k++)
+      List<Item> items = new List<Item>
         {
-          if (ChildrenGroupingTemplateIds.Any(templateId => items[k].Template.DoesTemplateInheritFrom(templateId)))
+            item
+        };
+      items.AddRange(GetFieldReferences(item, set));
+      items.AddRange(GetLayoutReferences(item, set));
+      int j = 0;
+      while (j < items.Count)
+      {
+        for (; j < items.Count; j++)
+        {
+          if (ChildrenGroupingTemplateIds.Any((ID templateId) => items[j].Template.DoesTemplateInheritFrom(templateId)))
           {
-            items.AddRange(items[k].Children);
+            IEnumerable<Item> unique = GetUnique(items[j].Children, items);
+            items.AddRange(unique);
           }
-          else if (CompositeTemplateIds.Any(templateId => items[k].Template.DoesTemplateInheritFrom(templateId)))
+          else if (CompositeTemplateIds.Any((ID templateId) => items[j].Template.DoesTemplateInheritFrom(templateId)))
           {
-            items.AddRange(GetLayoutReferences(items[k], dataFolders));
+            IEnumerable<Item> unique2 = GetUnique(GetLayoutReferences(items[j], set), items);
+            items.AddRange(unique2);
           }
         }
       }
-
       ProviderIndexConfiguration config = ContentSearchManager.GetIndex(indexable).Configuration;
-      return items.Distinct(new ItemIdComparer()).SelectMany(i => ExtractTextFields(i, config));
+      return items.Distinct(new ItemIdComparer()).SelectMany((Item i) => ExtractTextFields(i, config));
     }
 
   }
